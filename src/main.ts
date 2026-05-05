@@ -8,6 +8,25 @@ import {
   normalizeRoute,
 } from './metrics/metrics';
 
+/** Origens extras vindas do ambiente (ex.: `CORS_ALLOWED_ORIGINS` injetado pelo Terraform no AKS). */
+function corsAllowedOrigins(): string[] {
+  const local = [
+    'http://localhost:3001',
+    'http://localhost:3000',
+    'http://127.0.0.1:3001',
+    'http://127.0.0.1:3000',
+  ];
+  /** Público dev Azure — mantém ACAO mesmo se o pod estiver sem env ou imagem antiga. */
+  const defaultAzure = [
+    'https://medinventory-frontend-app-dev.azurewebsites.net',
+  ];
+  const fromEnv =
+    process.env.CORS_ALLOWED_ORIGINS?.split(',')
+      .map((o) => o.trim())
+      .filter((o) => o.length > 0) ?? [];
+  return [...new Set([...local, ...defaultAzure, ...fromEnv])];
+}
+
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
@@ -43,14 +62,9 @@ async function bootstrap() {
     next();
   });
 
-  // Configuração de CORS
+  // Configuração de CORS (localhost sempre + lista em CORS_ALLOWED_ORIGINS no Azure)
   app.enableCors({
-    origin: [
-      'http://localhost:3001', // Frontend local
-      'http://localhost:3000', // Swagger local
-      'http://127.0.0.1:3001',
-      'http://127.0.0.1:3000',
-    ],
+    origin: corsAllowedOrigins(),
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: [
       'Origin',

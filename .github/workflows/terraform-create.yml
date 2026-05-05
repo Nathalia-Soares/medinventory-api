@@ -76,6 +76,11 @@ jobs:
             'kubernetes_service.api_lb[0]' \
             'kubernetes_namespace.monitoring[0]' \
             'helm_release.kube_prometheus_stack[0]' \
+            'helm_release.ingress_nginx[0]' \
+            'helm_release.cert_manager[0]' \
+            'kubernetes_manifest.clusterissuer_letsencrypt_prod[0]' \
+            'kubernetes_ingress_v1.api_https[0]' \
+            'time_sleep.wait_ingress_nginx_lb[0]' \
             || true
 
       - name: Terraform Validate

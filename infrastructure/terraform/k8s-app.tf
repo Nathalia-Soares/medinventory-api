@@ -123,6 +123,11 @@ resource "kubernetes_deployment" "api" {
             value = format("rediss://:%s@%s:%s/0", urlencode(azurerm_redis_cache.main.primary_access_key), azurerm_redis_cache.main.hostname, azurerm_redis_cache.main.ssl_port)
           }
 
+          env {
+            name  = "CORS_ALLOWED_ORIGINS"
+            value = join(",", local.cors_allowed_origins_effective)
+          }
+
           resources {
             requests = {
               cpu    = "100m"
@@ -174,7 +179,10 @@ resource "kubernetes_service" "api_lb" {
       target_port = 8080
     }
 
-    type = "LoadBalancer"
+    # Com Ingress + TLS, o tráfego público entra pelo LB do Ingress NGINX; este Service fica interno ao cluster.
+    type = (
+      var.enable_k8s_resources && var.enable_api_ingress_https && local.api_https_hostname != ""
+      ) ? "ClusterIP" : "LoadBalancer"
   }
 }
 

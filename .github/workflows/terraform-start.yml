@@ -12,6 +12,11 @@ on:
           - dev
           - staging
           - prod
+      enable_api_ingress_https:
+        description: 'HTTPS na API via Ingress NGINX + Let''s Encrypt (requer secret LETSENCRYPT_ACME_EMAIL)'
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   terraform-start:
@@ -105,10 +110,20 @@ jobs:
 
       - name: Terraform Plan (enable in-cluster resources)
         working-directory: infrastructure/terraform
-        run: terraform plan -refresh=false -var="sp_object_id=${{ secrets.SP_OBJECT_ID }}" -var="environment=${{ inputs.environment }}" -var="enable_k8s_resources=true" -out=tfplan
+        env:
+          TF_VAR_letsencrypt_acme_email: ${{ secrets.LETSENCRYPT_ACME_EMAIL }}
+        run: |
+          terraform plan -refresh=false \
+            -var="sp_object_id=${{ secrets.SP_OBJECT_ID }}" \
+            -var="environment=${{ inputs.environment }}" \
+            -var="enable_k8s_resources=true" \
+            -var="enable_api_ingress_https=${{ inputs.enable_api_ingress_https }}" \
+            -out=tfplan
 
       - name: Terraform Apply
         working-directory: infrastructure/terraform
+        env:
+          TF_VAR_letsencrypt_acme_email: ${{ secrets.LETSENCRYPT_ACME_EMAIL }}
         run: terraform apply -auto-approve tfplan
 
       - name: Show Outputs
@@ -137,3 +152,5 @@ jobs:
           echo "### Note:" >> $GITHUB_STEP_SUMMARY
           echo "This workflow applies Kubernetes resources via Terraform (enable_k8s_resources=true)." >> $GITHUB_STEP_SUMMARY
           echo "To update the image, run the **Build and Push Docker Image** workflow first." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**HTTPS (Ingress):** If you enabled \`enable_api_ingress_https\`, check outputs \`api_https_base_url\` and \`api_ingress_load_balancer_ip\`. Configure the frontend \`REACT_APP_API_URL\` to \`api_https_base_url\` (HTTPS)." >> $GITHUB_STEP_SUMMARY

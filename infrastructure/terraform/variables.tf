@@ -127,3 +127,57 @@ variable "tags" {
     ManagedBy   = "Terraform"
   }
 }
+
+variable "cors_allowed_origins" {
+  description = "Origens de navegador permitidas pelo CORS da API (variável de ambiente CORS_ALLOWED_ORIGINS no pod, separadas por vírgula)"
+  type        = list(string)
+  default = [
+    "https://medinventory-frontend-app-dev.azurewebsites.net",
+    "http://localhost:3000",
+  ]
+}
+
+variable "enable_api_ingress_https" {
+  description = "Se true, instala Ingress NGINX + cert-manager e expõe a API em HTTPS (Let's Encrypt). O Service da API vira ClusterIP; o IP público passa a ser o do Ingress. Requer letsencrypt_acme_email. Padrão false para não exigir e-mail em plan/CI antigos."
+  type        = bool
+  default     = false
+}
+
+variable "letsencrypt_acme_email" {
+  description = "E-mail para o Let's Encrypt (obrigatório quando enable_api_ingress_https = true)"
+  type        = string
+  default     = ""
+  sensitive   = false
+
+  validation {
+    condition = (
+      !var.enable_api_ingress_https ||
+      (length(trimspace(var.letsencrypt_acme_email)) > 3 && strcontains(trimspace(var.letsencrypt_acme_email), "@"))
+    )
+    error_message = "Com enable_api_ingress_https = true, defina letsencrypt_acme_email com um endereço válido."
+  }
+}
+
+variable "api_https_host_override" {
+  description = "FQDN manual para o certificado/Ingress (deve resolver para o IP do LB do Ingress). Se vazio, usa nip.io: api.<IP-com-hífens>.nip.io após o Ingress receber IP."
+  type        = string
+  default     = ""
+}
+
+variable "ingress_wait_for_lb_seconds" {
+  description = "Espera após instalar o Ingress NGINX antes de ler o IP externo (LB pode demorar a provisionar na Azure)."
+  type        = number
+  default     = 120
+}
+
+variable "ingress_nginx_chart_version" {
+  description = "Versão do Helm chart ingress-nginx"
+  type        = string
+  default     = "4.11.3"
+}
+
+variable "cert_manager_chart_version" {
+  description = "Versão do Helm chart cert-manager"
+  type        = string
+  default     = "v1.14.5"
+}

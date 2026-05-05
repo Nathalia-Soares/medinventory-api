@@ -65,11 +65,21 @@ output "aks_oidc_issuer_url" {
 }
 
 output "api_load_balancer_ip" {
-  description = "Public IP address of the Kubernetes Service (after apply)"
+  description = "IP público do Service LoadBalancer da API (ClusterIP quando HTTPS via Ingress está ativo)"
   value = var.enable_k8s_resources ? try(
     kubernetes_service.api_lb[0].status[0].load_balancer[0].ingress[0].ip,
     null
   ) : null
+}
+
+output "api_ingress_load_balancer_ip" {
+  description = "IP público do Ingress NGINX (entrada HTTPS recomendada quando enable_api_ingress_https)"
+  value       = var.enable_k8s_resources && var.enable_api_ingress_https ? local.ingress_lb_ip : null
+}
+
+output "api_https_base_url" {
+  description = "URL base HTTPS da API (Let's Encrypt + nip.io ou api_https_host_override)"
+  value       = local.api_https_hostname != "" ? "https://${local.api_https_hostname}" : null
 }
 
 output "db_backup_container_name" {
