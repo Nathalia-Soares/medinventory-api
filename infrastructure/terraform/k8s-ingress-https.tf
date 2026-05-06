@@ -76,10 +76,39 @@ resource "helm_release" "cert_manager" {
   chart      = "cert-manager"
   version    = var.cert_manager_chart_version
 
-  set {
-    name  = "installCRDs"
-    value = "true"
-  }
+  # ClusterIssuer via extraObjects: evita kubernetes_manifest (plan falha antes dos CRDs existirem).
+  values = [
+    yamlencode({
+      installCRDs = true
+      extraObjects = [
+        {
+          apiVersion = "cert-manager.io/v1"
+          kind       = "ClusterIssuer"
+          metadata = {
+            name = "letsencrypt-prod"
+          }
+          spec = {
+            acme = {
+              server = "https://acme-v02.api.letsencrypt.org/directory"
+              email  = trimspace(var.letsencrypt_acme_email)
+              privateKeySecretRef = {
+                name = "letsencrypt-prod"
+              }
+              solvers = [
+                {
+                  http01 = {
+                    ingress = {
+                      class = "nginx"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    })
+  ]
 
   depends_on = [
     azurerm_kubernetes_cluster.main,
@@ -87,38 +116,9 @@ resource "helm_release" "cert_manager" {
   ]
 }
 
-resource "kubernetes_manifest" "clusterissuer_letsencrypt_prod" {
-  count = local.ingress_https_enabled ? 1 : 0
-
-  manifest = {
-    apiVersion = "cert-manager.io/v1"
-    kind       = "ClusterIssuer"
-    metadata = {
-      name = "letsencrypt-prod"
-    }
-    spec = {
-      acme = {
-        server = "https://acme-v02.api.letsencrypt.org/directory"
-        email  = trimspace(var.letsencrypt_acme_email)
-        privateKeySecretRef = {
-          name = "letsencrypt-prod"
-        }
-        solvers = [{
-          http01 = {
-            ingress = {
-              class = "nginx"
-            }
-          }
-        }]
-      }
-    }
-  }
-
-  depends_on = [helm_release.cert_manager[0]]
-}
-
 resource "kubernetes_ingress_v1" "api_https" {
-  count                  = local.ingress_https_enabled && local.api_https_hostname != "" ? 1 : 0
+  # count não pode depender de local.api_https_hostname (nip.io derivado do IP do LB): esse valor só existe após o data source ler o Service.
+  count                  = local.ingress_https_enabled ? 1 : 0
   wait_for_load_balancer = true
 
   metadata {
@@ -161,7 +161,8 @@ resource "kubernetes_ingress_v1" "api_https" {
   }
 
   depends_on = [
-    kubernetes_manifest.clusterissuer_letsencrypt_prod[0],
+    helm_release.cert_manager[0],
+    data.kubernetes_service.ingress_nginx_controller[0],
     kubernetes_deployment.api[0],
     kubernetes_service.api_lb[0],
   ]

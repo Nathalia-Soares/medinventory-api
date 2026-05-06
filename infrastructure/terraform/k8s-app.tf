@@ -180,9 +180,8 @@ resource "kubernetes_service" "api_lb" {
     }
 
     # Com Ingress + TLS, o tráfego público entra pelo LB do Ingress NGINX; este Service fica interno ao cluster.
-    type = (
-      var.enable_k8s_resources && var.enable_api_ingress_https && local.api_https_hostname != ""
-      ) ? "ClusterIP" : "LoadBalancer"
+    # Não usar local.api_https_hostname aqui: com nip.io ele depende do IP do LB e quebra o plan (unknown).
+    type = local.ingress_https_enabled ? "ClusterIP" : "LoadBalancer"
   }
 }
 
