@@ -59,8 +59,9 @@ resource "kubernetes_deployment" "api" {
         service_account_name = kubernetes_service_account.api[0].metadata[0].name
 
         container {
-          name  = "api"
-          image = "${azurerm_container_registry.main.login_server}/${var.project_name}-api:latest"
+          name              = "api"
+          image             = "${azurerm_container_registry.main.login_server}/${var.project_name}-api:latest"
+          image_pull_policy = "Always"
 
           port {
             container_port = 8080

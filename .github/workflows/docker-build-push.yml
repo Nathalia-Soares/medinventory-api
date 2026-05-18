@@ -133,10 +133,12 @@ jobs:
           IMAGE_NAME="${{ steps.acr-info.outputs.acr_login_server }}/medinventory-api"
           IMAGE_TAG="${{ inputs.tag }}"
           
-          # Get image digest
+          # Get image digest (pin deploy to digest — :latest alone does not force nodes to pull a new image)
           DIGEST=$(az acr repository show --name ${{ steps.acr-info.outputs.acr_name }} --image medinventory-api:$IMAGE_TAG --query "digest" -o tsv || echo "unknown")
-          
+          IMAGE_BY_DIGEST="${IMAGE_NAME}@${DIGEST}"
+
           echo "image_full_name=$IMAGE_NAME:$IMAGE_TAG" >> $GITHUB_OUTPUT
+          echo "image_by_digest=$IMAGE_BY_DIGEST" >> $GITHUB_OUTPUT
           echo "digest=$DIGEST" >> $GITHUB_OUTPUT
 
       - name: Set AKS Context
@@ -161,8 +163,24 @@ jobs:
             exit 0
           fi
 
-          kubectl -n medinventory set image deployment/medinventory-api api="${{ steps.image-details.outputs.image_full_name }}"
-          kubectl -n medinventory rollout status deployment/medinventory-api --timeout=5m
+          IMAGE_REF="${{ steps.image-details.outputs.image_by_digest }}"
+          if [ "${{ steps.image-details.outputs.digest }}" = "unknown" ] || [ -z "${{ steps.image-details.outputs.digest }}" ]; then
+            echo "WARN: digest unavailable; falling back to tag (may not pull the image just pushed)"
+            IMAGE_REF="${{ steps.image-details.outputs.image_full_name }}"
+          fi
+
+          echo "Setting deployment image to: $IMAGE_REF"
+          kubectl -n medinventory set image deployment/medinventory-api api="$IMAGE_REF"
+          kubectl -n medinventory patch deployment medinventory-api --type=strategic -p \
+            '{"spec":{"template":{"spec":{"containers":[{"name":"api","imagePullPolicy":"Always"}]}}}}'
+          kubectl -n medinventory rollout status deployment/medinventory-api --timeout=10m
+
+      - name: Deploy to AKS — debug on failure
+        if: failure()
+        run: |
+          kubectl -n medinventory get pods -l app=medinventory-api -o wide || true
+          kubectl -n medinventory describe pods -l app=medinventory-api | tail -80 || true
+          kubectl -n medinventory logs -l app=medinventory-api --tail=60 --all-containers=true || true
 
       - name: Summary
         if: always()
@@ -171,6 +189,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Environment:** ${{ inputs.environment }}" >> $GITHUB_STEP_SUMMARY
           echo "**Image:** \`${{ steps.image-details.outputs.image_full_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Deploy ref:** \`${{ steps.image-details.outputs.image_by_digest }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**Digest:** \`${{ steps.image-details.outputs.digest }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**Registry:** ${{ steps.acr-info.outputs.acr_login_server }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
