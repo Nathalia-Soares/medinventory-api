@@ -26,6 +26,15 @@ else
   exit 1
 fi
 
-# Start the application
-echo "Starting NestJS application..."
-exec node dist/src/main.js
+# Start the application (nest build output varies: dist/src/main.js vs dist/main.js)
+if [ -f dist/src/main.js ]; then
+  MAIN=dist/src/main.js
+elif [ -f dist/main.js ]; then
+  MAIN=dist/main.js
+else
+  echo "ERROR: compiled entrypoint not found under dist/"
+  exit 1
+fi
+
+echo "Starting NestJS application ($MAIN)..."
+exec node "$MAIN"
