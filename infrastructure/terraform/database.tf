@@ -10,7 +10,6 @@ resource "azurerm_mysql_flexible_server" "main" {
   geo_redundant_backup_enabled = false
 
   sku_name = var.mysql_sku_name
-  zone     = "3"
 
   storage {
     size_gb = var.mysql_storage_size_gb
