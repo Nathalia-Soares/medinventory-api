@@ -16,6 +16,11 @@ resource "azurerm_mysql_flexible_server" "main" {
   }
 
   tags = var.tags
+
+  # zone is immutable after creation; Mexico Central has no availability zones anyway.
+  lifecycle {
+    ignore_changes = [zone]
+  }
 }
 
 # MySQL Database
